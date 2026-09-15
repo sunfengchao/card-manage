@@ -1,0 +1,57 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+.app-shell {
+  height: 100%;
+}
+
+/* 侧栏 */
+.app-aside {
+  background: #1d2530;
+  display: flex;
+  flex-direction: column;
+}
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 20px;
+  color: #fff;
+}
+.app-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.app-menu {
+  border-right: none;
+  flex: 1;
+}
+
+/* 内容区 */
+.app-main {
+  background: #f5f7fa;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* 页面通用 */
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
