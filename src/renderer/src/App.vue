@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Wallet, Monitor, CreditCard, List, DataAnalysis, Setting } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Wallet,
+  Monitor,
+  CreditCard,
+  List,
+  DataAnalysis,
+  Setting,
+  FolderOpened
+} from '@element-plus/icons-vue'
 import { useData } from './store/data'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
-const { state, updateSettings } = useData()
+const { state, updateSettings, exportDataToFile, importDataFromFile, replaceAllData } = useData()
 
 // ---------- 预警设置 ----------
 const settingsVisible = ref(false)
@@ -26,6 +34,40 @@ function saveSettings(): void {
   updateSettings({ ...settingsForm })
   settingsVisible.value = false
   ElMessage.success('预警设置已保存')
+}
+
+// ---------- 数据备份（导出/导入） ----------
+const backupVisible = ref(false)
+
+// 导出全部数据到 JSON 文件，用于在其它电脑上导入
+async function handleExport(): Promise<void> {
+  const path = await exportDataToFile()
+  if (path) {
+    backupVisible.value = false
+    ElMessage.success(`已导出到：${path}`)
+  }
+}
+
+// 从 JSON 备份文件导入，确认后完全覆盖当前数据
+async function handleImport(): Promise<void> {
+  const data = await importDataFromFile()
+  if (!data) return
+  try {
+    await ElMessageBox.confirm(
+      `将导入 ${data.cards.length} 张信用卡、${data.accounts.length} 个账户、${data.transactions.length} 笔交易，并完全覆盖当前全部数据，此操作不可恢复。`,
+      '确认导入',
+      {
+        type: 'warning',
+        confirmButtonText: '覆盖导入',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return // 用户取消导入
+  }
+  replaceAllData(data)
+  backupVisible.value = false
+  ElMessage.success('数据导入成功')
 }
 </script>
 
@@ -70,6 +112,10 @@ function saveSettings(): void {
           <el-icon><Setting /></el-icon>
           <span>预警设置</span>
         </el-button>
+        <el-button text class="settings-btn" @click="backupVisible = true">
+          <el-icon><FolderOpened /></el-icon>
+          <span>数据备份</span>
+        </el-button>
       </div>
     </el-aside>
     <el-main class="app-main">
@@ -111,6 +157,18 @@ function saveSettings(): void {
         <el-button type="primary" @click="saveSettings">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="backupVisible" title="数据备份" width="460px">
+      <div class="backup-tip">
+        在其它电脑上使用本应用时：先在旧电脑导出备份文件，通过 U
+        盘或聊天工具传输后，再在新电脑上导入即可。
+      </div>
+      <div class="backup-actions">
+        <el-button type="primary" @click="handleExport">导出到文件</el-button>
+        <el-button type="danger" plain @click="handleImport">从文件导入</el-button>
+      </div>
+      <div class="backup-warning">导入会完全覆盖当前全部数据，请谨慎操作。</div>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -125,6 +183,24 @@ function saveSettings(): void {
 }
 .settings-btn:hover {
   color: #409eff;
+}
+/* 覆盖 Element Plus 相邻按钮默认的 margin-left，保持纵向排列对齐 */
+.settings-btn + .settings-btn {
+  margin-left: 0;
+  margin-top: 4px;
+}
+.backup-tip {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+.backup-actions {
+  margin-top: 16px;
+}
+.backup-warning {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #f56c6c;
 }
 .settings-tip {
   font-size: 12px;

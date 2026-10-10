@@ -8,6 +8,8 @@ declare global {
       getData: () => Promise<AppData>
       setData: (data: AppData) => Promise<void>
       flushData: (data: AppData) => void
+      exportData: (data: AppData) => Promise<string | null>
+      importData: () => Promise<AppData | null>
     }
   }
 }

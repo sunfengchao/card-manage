@@ -11,7 +11,11 @@ const api = {
   // 关窗前同步兜底保存（单向消息，不等结果）
   flushData: (data: AppData): void => {
     ipcRenderer.send('data:flush', data)
-  }
+  },
+  // 导出全部数据到 JSON 备份文件，返回保存路径（用户取消返回 null）
+  exportData: (data: AppData): Promise<string | null> => ipcRenderer.invoke('data:export', data),
+  // 从 JSON 备份文件读取数据（用户取消返回 null）
+  importData: (): Promise<AppData | null> => ipcRenderer.invoke('data:import')
 }
 
 if (process.contextIsolated) {

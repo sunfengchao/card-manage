@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -45,6 +45,53 @@ function loadData(): AppData {
 // 写盘失败时抛出异常，由渲染进程捕获并向用户提示
 function saveData(data: unknown): void {
   writeFileSync(getDataFilePath(), JSON.stringify(data, null, 2), 'utf-8')
+}
+
+// 生成备份文件名时间戳，如 20260908-153000
+function formatBackupStamp(): string {
+  const now = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+}
+
+// 导出全部数据到用户选择的 JSON 文件，返回保存路径（取消返回 null）
+async function exportDataToFile(
+  event: Electron.IpcMainInvokeEvent,
+  data: unknown
+): Promise<string | null> {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const options = {
+    title: '导出数据',
+    defaultPath: `卡包备份-${formatBackupStamp()}.json`,
+    filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+  }
+  // 挂到父窗口上显示模态对话框；极端情况下窗口已销毁则退化为独立对话框
+  const result = win
+    ? await dialog.showSaveDialog(win, options)
+    : await dialog.showSaveDialog(options)
+  if (result.canceled || !result.filePath) return null
+  // 写入失败会抛出异常，由渲染进程捕获并提示
+  writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8')
+  return result.filePath
+}
+
+// 从用户选择的 JSON 文件读取备份数据（取消返回 null）
+async function importDataFromFile(event: Electron.IpcMainInvokeEvent): Promise<AppData | null> {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const options = {
+    title: '导入数据',
+    properties: ['openFile'] as Array<'openFile'>,
+    filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+  }
+  const result = win
+    ? await dialog.showOpenDialog(win, options)
+    : await dialog.showOpenDialog(options)
+  const file = result.filePaths[0]
+  if (!file) return null
+  // 解析失败（文件损坏/格式不对）会抛出异常，由渲染进程捕获并提示
+  const raw = JSON.parse(readFileSync(file, 'utf-8'))
+  // 与 loadData 相同的容错处理，避免导入脏数据导致页面崩溃
+  return normalize(raw)
 }
 
 function createWindow(): void {
@@ -94,6 +141,9 @@ app.whenReady().then(() => {
   ipcMain.handle('data:set', (_event, data) => saveData(data))
   // 关窗兜底：渲染进程在卸载前用同步单向消息立即落盘
   ipcMain.on('data:flush', (_event, data) => saveData(data))
+  // 数据导出/导入，用于跨机器迁移与备份
+  ipcMain.handle('data:export', (event, data) => exportDataToFile(event, data))
+  ipcMain.handle('data:import', (event) => importDataFromFile(event))
 
   createWindow()
 

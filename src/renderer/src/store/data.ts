@@ -87,7 +87,24 @@ function genId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-export function useData() {
+// useData 返回的数据与操作方法集合
+interface UseDataResult {
+  state: AppData
+  addCard: (card: Omit<Card, 'id' | 'createdAt'>) => void
+  updateCard: (id: string, patch: Partial<Card>) => void
+  removeCard: (id: string) => void
+  addAccount: (account: Omit<Account, 'id' | 'createdAt'>) => void
+  updateAccount: (id: string, patch: Partial<Account>) => void
+  removeAccount: (id: string) => void
+  addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void
+  removeTransaction: (id: string) => void
+  updateSettings: (patch: Partial<AppSettings>) => void
+  exportDataToFile: () => Promise<string | null>
+  importDataFromFile: () => Promise<AppData | null>
+  replaceAllData: (data: AppData) => void
+}
+
+export function useData(): UseDataResult {
   function addCard(card: Omit<Card, 'id' | 'createdAt'>): void {
     state.cards.push({ ...card, id: genId(), createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss') })
     scheduleSave()
@@ -178,6 +195,36 @@ export function useData() {
     scheduleSave()
   }
 
+  // 导出全部数据到 JSON 备份文件，返回保存路径（用户取消返回 null）
+  async function exportDataToFile(): Promise<string | null> {
+    try {
+      // snapshot() 已转为普通对象，可直接通过 IPC 结构化克隆
+      return await window.api.exportData(snapshot())
+    } catch {
+      ElMessage.error('导出失败！请检查保存路径或磁盘权限后重试')
+      return null
+    }
+  }
+
+  // 从 JSON 备份文件读取数据（用户取消或读取失败返回 null）
+  async function importDataFromFile(): Promise<AppData | null> {
+    try {
+      return await window.api.importData()
+    } catch {
+      ElMessage.error('导入失败！文件不存在或格式不正确')
+      return null
+    }
+  }
+
+  // 用备份数据完全覆盖当前数据（导入确认后调用）
+  function replaceAllData(data: AppData): void {
+    state.cards = data.cards
+    state.accounts = data.accounts
+    state.transactions = data.transactions
+    state.settings = data.settings ?? { ...DEFAULT_SETTINGS }
+    scheduleSave()
+  }
+
   return {
     state,
     addCard,
@@ -188,7 +235,10 @@ export function useData() {
     removeAccount,
     addTransaction,
     removeTransaction,
-    updateSettings
+    updateSettings,
+    exportDataToFile,
+    importDataFromFile,
+    replaceAllData
   }
 }
 
