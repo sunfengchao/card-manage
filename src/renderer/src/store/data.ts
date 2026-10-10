@@ -101,7 +101,7 @@ interface UseDataResult {
   updateSettings: (patch: Partial<AppSettings>) => void
   exportDataToFile: () => Promise<string | null>
   importDataFromFile: () => Promise<AppData | null>
-  replaceAllData: (data: AppData) => void
+  replaceAllData: (data: AppData) => Promise<boolean>
 }
 
 export function useData(): UseDataResult {
@@ -216,13 +216,26 @@ export function useData(): UseDataResult {
     }
   }
 
-  // 用备份数据完全覆盖当前数据（导入确认后调用）
-  function replaceAllData(data: AppData): void {
+  // 用备份数据完全覆盖当前数据并立即落盘（导入确认后调用），返回是否写盘成功
+  async function replaceAllData(data: AppData): Promise<boolean> {
     state.cards = data.cards
     state.accounts = data.accounts
     state.transactions = data.transactions
     state.settings = data.settings ?? { ...DEFAULT_SETTINGS }
-    scheduleSave()
+    // 取消防抖定时器并立即持久化，避免“先提示成功、后写盘失败”的误导
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    dirty = true
+    try {
+      await window.api.setData(snapshot())
+      saveFailed = false
+      dirty = false
+      return true
+    } catch {
+      return false
+    }
   }
 
   return {

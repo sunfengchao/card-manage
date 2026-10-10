@@ -65,9 +65,13 @@ async function handleImport(): Promise<void> {
   } catch {
     return // 用户取消导入
   }
-  replaceAllData(data)
+  const ok = await replaceAllData(data)
   backupVisible.value = false
-  ElMessage.success('数据导入成功')
+  if (ok) {
+    ElMessage.success('数据导入成功')
+  } else {
+    ElMessage.error('数据导入失败！无法写入数据文件，请检查磁盘权限后重试')
+  }
 }
 </script>
 

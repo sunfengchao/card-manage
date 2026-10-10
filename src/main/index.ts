@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
-import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, chmodSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import type { AppData } from '../shared/types'
@@ -44,7 +44,22 @@ function loadData(): AppData {
 
 // 写盘失败时抛出异常，由渲染进程捕获并向用户提示
 function saveData(data: unknown): void {
-  writeFileSync(getDataFilePath(), JSON.stringify(data, null, 2), 'utf-8')
+  const file = getDataFilePath()
+  // 确保数据目录存在（例如开发模式的 dev-user-data 目录在首次写入前可能不存在）
+  mkdirSync(dirname(file), { recursive: true })
+  // Windows 下数据文件可能因外部原因（如从备份复制而来）被标记为只读，
+  // 写入前清除只读属性，避免 EPERM 导致保存失败
+  if (process.platform === 'win32' && existsSync(file)) {
+    const mode = statSync(file).mode
+    if ((mode & 0o200) === 0) {
+      try {
+        chmodSync(file, mode | 0o200)
+      } catch {
+        // 清除只读失败时继续尝试写入，由 writeFileSync 报告真实错误
+      }
+    }
+  }
+  writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8')
 }
 
 // 生成备份文件名时间戳，如 20260908-153000
